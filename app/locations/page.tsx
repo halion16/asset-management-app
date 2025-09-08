@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { getLocations, getAssets, saveLocation, initializeStorage } from "@/lib/storage";
+import LocationForm from "@/components/LocationForm";
 import { Location, Asset, Comment } from "@/data/mockData";
 import { 
   Plus,
@@ -47,6 +48,8 @@ export default function LocationsPage() {
     priority: null as string | null
   });
   const [showFilterDropdown, setShowFilterDropdown] = useState<string | null>(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
 
   useEffect(() => {
     initializeStorage();
@@ -61,6 +64,27 @@ export default function LocationsPage() {
     if (locationsData.length > 0 && !selectedLocation) {
       setSelectedLocation(locationsData[0]);
     }
+  };
+
+  const handleSaveLocation = (location: Location) => {
+    saveLocation(location);
+    loadData();
+    setShowLocationModal(false);
+    setEditingLocation(null);
+    // Select the new location if it's a new one
+    if (!editingLocation) {
+      setSelectedLocation(location);
+    }
+  };
+
+  const handleNewLocation = () => {
+    setEditingLocation(null);
+    setShowLocationModal(true);
+  };
+
+  const handleEditLocation = (location: Location) => {
+    setEditingLocation(location);
+    setShowLocationModal(true);
   };
 
   const getMaintenanceRanges = () => {
@@ -271,7 +295,7 @@ export default function LocationsPage() {
               <Button 
                 size="sm" 
                 className="bg-blue-600 hover:bg-blue-700"
-                disabled
+                onClick={handleNewLocation}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Nuova Ubicazione
@@ -908,6 +932,18 @@ export default function LocationsPage() {
           </div>
         )}
       </div>
+
+      {/* Location Modal */}
+      {showLocationModal && (
+        <LocationForm
+          location={editingLocation || undefined}
+          onSave={handleSaveLocation}
+          onCancel={() => {
+            setShowLocationModal(false);
+            setEditingLocation(null);
+          }}
+        />
+      )}
     </div>
   );
 }
