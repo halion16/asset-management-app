@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import AssetForm from "@/components/AssetForm";
 import QRCodeGenerator from "@/components/QRCodeGenerator";
 import { getAssets, saveAsset, deleteAsset, initializeStorage } from "@/lib/storage";
@@ -23,7 +24,15 @@ import {
   FileText,
   Activity,
   X,
-  QrCode
+  QrCode,
+  BarChart3,
+  TrendingUp,
+  Clock,
+  DollarSign,
+  Target,
+  Gauge,
+  PieChart,
+  List
 } from "lucide-react";
 
 export default function AssetsPage() {
@@ -35,6 +44,7 @@ export default function AssetsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | undefined>();
   const [showQRCode, setShowQRCode] = useState(false);
+  const [currentView, setCurrentView] = useState<'list' | 'analytics'>('list');
 
   useEffect(() => {
     initializeStorage();
@@ -99,6 +109,272 @@ export default function AssetsPage() {
     }
   };
 
+  // Asset Analytics Functions
+  const getAssetAnalytics = () => {
+    const totalAssets = assets.length;
+    const operationalAssets = assets.filter(a => a.status === 'operational').length;
+    const criticalAssets = assets.filter(a => a.status === 'down' || a.status === 'maintenance').length;
+    const retiredAssets = assets.filter(a => a.status === 'retired').length;
+    
+    // Calculate total value and average uptime
+    const totalValue = assets.reduce((sum, asset) => sum + asset.value, 0);
+    const avgUptime = totalAssets > 0 ? Math.round((operationalAssets / totalAssets) * 100) : 0;
+    
+    // Estimate maintenance costs (mock calculation for demo)
+    const maintenanceCostEstimate = assets
+      .filter(a => a.status === 'maintenance')
+      .reduce((sum, asset) => sum + (asset.value * 0.05), 0); // 5% of asset value
+    
+    // Category distribution
+    const categoryStats = assets.reduce((acc, asset) => {
+      acc[asset.category] = {
+        count: (acc[asset.category]?.count || 0) + 1,
+        value: (acc[asset.category]?.value || 0) + asset.value,
+        operational: acc[asset.category]?.operational || 0,
+        critical: acc[asset.category]?.critical || 0
+      };
+      
+      if (asset.status === 'operational') {
+        acc[asset.category].operational += 1;
+      } else if (asset.status === 'down' || asset.status === 'maintenance') {
+        acc[asset.category].critical += 1;
+      }
+      
+      return acc;
+    }, {} as Record<string, {count: number, value: number, operational: number, critical: number}>);
+    
+    // Business critical assets (high value or specific categories)
+    const businessCriticalAssets = assets.filter(asset => 
+      asset.value > 10000 || 
+      ['IT', 'POS', 'Payment'].includes(asset.category) ||
+      asset.name.toLowerCase().includes('pos') ||
+      asset.name.toLowerCase().includes('payment') ||
+      asset.name.toLowerCase().includes('server')
+    );
+    
+    const criticalAssetsDown = businessCriticalAssets.filter(a => a.status === 'down').length;
+    
+    return {
+      totalAssets,
+      operationalAssets,
+      criticalAssets,
+      retiredAssets,
+      totalValue,
+      avgUptime,
+      maintenanceCostEstimate,
+      categoryStats,
+      businessCriticalAssets: businessCriticalAssets.length,
+      criticalAssetsDown
+    };
+  };
+
+  const renderAnalyticsView = () => {
+    const analytics = getAssetAnalytics();
+
+    return (
+      <div className="space-y-6">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Asset Operativi</p>
+                  <p className="text-2xl font-bold text-green-600">{analytics.operationalAssets}</p>
+                  <p className="text-xs text-gray-500">su {analytics.totalAssets} totali</p>
+                </div>
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Asset Critici</p>
+                  <p className="text-2xl font-bold text-orange-600">{analytics.criticalAssetsDown}</p>
+                  <p className="text-xs text-gray-500">Business critical down</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-orange-600" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Uptime Medio</p>
+                  <p className="text-2xl font-bold text-blue-600">{analytics.avgUptime}%</p>
+                  <p className="text-xs text-gray-500">Performance operativa</p>
+                </div>
+                <Gauge className="h-8 w-8 text-blue-600" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Costo Manutenzioni</p>
+                  <p className="text-2xl font-bold text-purple-600">€{Math.round(analytics.maintenanceCostEstimate).toLocaleString()}</p>
+                  <p className="text-xs text-gray-500">Stima corrente</p>
+                </div>
+                <DollarSign className="h-8 w-8 text-purple-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Asset Distribution by Category */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PieChart className="h-5 w-5" />
+                Asset per Categoria
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {Object.entries(analytics.categoryStats).map(([category, stats]) => {
+                  const percentage = analytics.totalAssets > 0 ? Math.round((stats.count / analytics.totalAssets) * 100) : 0;
+                  return (
+                    <div key={category} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Package className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <span className="font-medium text-sm">{category}</span>
+                          <p className="text-xs text-gray-500">
+                            Valore: €{stats.value.toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-20 bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full" 
+                            style={{ width: `${percentage}%` }}
+                          ></div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-semibold">{stats.count}</span>
+                          {stats.critical > 0 && (
+                            <p className="text-xs text-orange-600">{stats.critical} critici</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Business Critical Assets */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5" />
+                Asset Business Critical
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                    <span className="font-medium text-red-800">Asset Critici Fermi</span>
+                  </div>
+                  <p className="text-2xl font-bold text-red-600">{analytics.criticalAssetsDown}</p>
+                  <p className="text-xs text-red-600">Impatto elevato su business</p>
+                </div>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="h-4 w-4 text-blue-600" />
+                    <span className="font-medium text-blue-800">Totale Business Critical</span>
+                  </div>
+                  <p className="text-2xl font-bold text-blue-600">{analytics.businessCriticalAssets}</p>
+                  <p className="text-xs text-blue-600">Asset ad alta priorità</p>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="font-medium text-green-800">Valore Totale Asset</span>
+                  </div>
+                  <p className="text-2xl font-bold text-green-600">€{analytics.totalValue.toLocaleString()}</p>
+                  <p className="text-xs text-green-600">Investimento complessivo</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Business Impact Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Impatto Business & Raccomandazioni
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-medium text-yellow-800 mb-2">🎯 Asset POS/Payment</h4>
+                <p className="text-sm text-yellow-700 mb-2">
+                  Asset critici per operazioni quotidiane
+                </p>
+                <div className="text-xs text-yellow-600">
+                  • Priorità massima per manutenzione
+                  <br />
+                  • Impatto diretto su fatturato
+                  <br />
+                  • Backup necessario
+                </div>
+              </div>
+              
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h4 className="font-medium text-purple-800 mb-2">💰 Asset Alto Valore</h4>
+                <p className="text-sm text-purple-700 mb-2">
+                  Macchinari e sistemi costosi
+                </p>
+                <div className="text-xs text-purple-600">
+                  • Manutenzione preventiva essenziale
+                  <br />
+                  • Contratti assistenza consigliati
+                  <br />
+                  • Monitoraggio costante ROI
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h4 className="font-medium text-gray-800 mb-2">🛠️ Asset Supporto</h4>
+                <p className="text-sm text-gray-700 mb-2">
+                  Arredi e attrezzature secondarie
+                </p>
+                <div className="text-xs text-gray-600">
+                  • Manutenzione programmata
+                  <br />
+                  • Sostituzione su necessità
+                  <br />
+                  • Costo-beneficio ottimizzato
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   // Stats
   const stats = {
     total: assets.length,
@@ -117,71 +393,115 @@ export default function AssetsPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-lg font-semibold text-gray-900">Attrezzature</h1>
-              <p className="text-sm text-gray-600">{filteredAssets.length} asset trovati</p>
+              <p className="text-sm text-gray-600">
+                {currentView === 'list' ? `${filteredAssets.length} asset trovati` : 'Panoramica Analytics'}
+              </p>
             </div>
-            <Button 
-              onClick={() => setShowForm(true)}
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Nuovo
-            </Button>
+            <div className="flex items-center gap-2">
+              <div className="flex bg-gray-100 rounded-md p-1">
+                <Button
+                  variant={currentView === 'list' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setCurrentView('list')}
+                  className="px-3 py-1"
+                >
+                  <List className="h-4 w-4 mr-1" />
+                  Lista
+                </Button>
+                <Button
+                  variant={currentView === 'analytics' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setCurrentView('analytics')}
+                  className="px-3 py-1"
+                >
+                  <BarChart3 className="h-4 w-4 mr-1" />
+                  Analytics
+                </Button>
+              </div>
+              
+              {currentView === 'list' && (
+                <Button 
+                  onClick={() => setShowForm(true)}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Nuovo
+                </Button>
+              )}
+            </div>
           </div>
 
-          {/* Search */}
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Cerca asset..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
+          {currentView === 'list' && (
+            <>
+              {/* Search */}
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Cerca asset..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
 
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <div className="bg-gray-50 p-2 rounded text-center">
-              <div className="text-lg font-semibold text-gray-900">{stats.operational}</div>
-              <div className="text-xs text-gray-600">Operativi</div>
-            </div>
-            <div className="bg-gray-50 p-2 rounded text-center">
-              <div className="text-lg font-semibold text-gray-900">{stats.maintenance}</div>
-              <div className="text-xs text-gray-600">In Manutenzione</div>
-            </div>
-          </div>
+              {/* Quick Stats */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="bg-gray-50 p-2 rounded text-center">
+                  <div className="text-lg font-semibold text-gray-900">{stats.operational}</div>
+                  <div className="text-xs text-gray-600">Operativi</div>
+                </div>
+                <div className="bg-gray-50 p-2 rounded text-center">
+                  <div className="text-lg font-semibold text-gray-900">{stats.maintenance}</div>
+                  <div className="text-xs text-gray-600">In Manutenzione</div>
+                </div>
+              </div>
 
-          {/* Filters */}
-          <div className="flex gap-2">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded bg-white"
-            >
-              <option value="all">Tutti</option>
-              <option value="operational">Operativo</option>
-              <option value="maintenance">Manutenzione</option>
-              <option value="down">Fermo</option>
-              <option value="retired">Dismesso</option>
-            </select>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded bg-white"
-            >
-              <option value="all">Categorie</option>
-              <option value="IT">IT</option>
-              <option value="HVAC">HVAC</option>
-              <option value="Vehicle">Veicoli</option>
-              <option value="Machinery">Macchinari</option>
-            </select>
-          </div>
+              {/* Filters */}
+              <div className="flex gap-2">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded bg-white"
+                >
+                  <option value="all">Tutti</option>
+                  <option value="operational">Operativo</option>
+                  <option value="maintenance">Manutenzione</option>
+                  <option value="down">Fermo</option>
+                  <option value="retired">Dismesso</option>
+                </select>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded bg-white"
+                >
+                  <option value="all">Categorie</option>
+                  <option value="IT">IT</option>
+                  <option value="HVAC">HVAC</option>
+                  <option value="Vehicle">Veicoli</option>
+                  <option value="Machinery">Macchinari</option>
+                </select>
+              </div>
+            </>
+          )}
+          
+          {currentView === 'analytics' && (
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <BarChart3 className="h-5 w-5 text-blue-600" />
+                <h3 className="font-medium text-blue-800">Vista Analytics</h3>
+              </div>
+              <p className="text-xs text-blue-600">
+                Panoramica completa degli asset con metriche business e impatto operativo.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Assets List */}
-        <div className="flex-1 overflow-y-auto">
+        {currentView === 'list' && (
+          <div className="flex-1 overflow-y-auto">
           <div className="p-2">
             <div className="text-xs font-medium text-gray-500 mb-2 px-2">
               Ordina per: Nome
@@ -228,12 +548,16 @@ export default function AssetsPage() {
               </div>
             )}
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Right Column - Asset Details */}
+      {/* Right Column - Asset Details or Analytics */}
       <div className="flex-1 flex flex-col bg-white">
-        {selectedAsset ? (
+        {currentView === 'analytics' ? (
+          <div className="flex-1 overflow-y-auto p-6">
+            {renderAnalyticsView()}
+          </div>
+        ) : selectedAsset ? (
           <>
             {/* Header */}
             <div className="p-6 border-b border-gray-200">
