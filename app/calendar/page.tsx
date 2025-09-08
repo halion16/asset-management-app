@@ -134,6 +134,8 @@ export default function CalendarPage() {
   const [notifications, setNotifications] = useState<string[]>([]);
   const [dismissedNotifications, setDismissedNotifications] = useState<string[]>([]);
   const [eventTemplates, setEventTemplates] = useState<MaintenanceEvent[]>([]);
+  const [selectedEventForPopover, setSelectedEventForPopover] = useState<MaintenanceEvent | null>(null);
+  const [popoverPosition, setPopoverPosition] = useState<{x: number, y: number}>({x: 0, y: 0});
   
   // Resource Management State
   const [resources, setResources] = useState<Resource[]>([
@@ -568,6 +570,22 @@ export default function CalendarPage() {
     setDraggedEvent(null);
   };
 
+  const handleEventClick = (event: MaintenanceEvent, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPopoverPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10
+    });
+    setSelectedEventForPopover(event);
+  };
+
+  const closePopover = () => {
+    setSelectedEventForPopover(null);
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -890,14 +908,18 @@ export default function CalendarPage() {
                       draggable={event.status !== 'completed'}
                       onDragStart={(e) => handleDragStart(event, e)}
                       onDragEnd={handleDragEnd}
-                      className={`text-xs p-1 rounded truncate ${typeColors[event.type]} text-white cursor-move hover:opacity-80 transition-opacity`}
-                      title={`Trascina per spostare: ${event.title}${event.workOrderId ? ' (sincronizzerà anche l\'ordine di lavoro)' : ''}`}
+                      onClick={(e) => handleEventClick(event, e)}
+                      className={`text-xs p-1 rounded truncate ${typeColors[event.type]} text-white cursor-pointer hover:opacity-80 transition-opacity`}
+                      title={`Click per dettagli • Trascina per spostare: ${event.title}${event.workOrderId ? ' (sincronizzerà anche l\'ordine di lavoro)' : ''}`}
                     >
                       {formatTime(event.scheduledTime)} {event.title}
                     </div>
                   ))}
                   {dayEvents.length > 2 && (
-                    <div className="text-xs text-gray-500 font-medium">
+                    <div 
+                      className="text-xs text-gray-500 font-medium cursor-pointer hover:text-gray-700 transition-colors"
+                      onClick={() => setSelectedDate(day)}
+                    >
                       +{dayEvents.length - 2} altri
                     </div>
                   )}
@@ -1904,6 +1926,202 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Event Details Popover */}
+      {selectedEventForPopover && (
+        <>
+          {/* Backdrop to close popover */}
+          <div 
+            className="fixed inset-0 bg-transparent z-40"
+            onClick={closePopover}
+          />
+          
+          {/* Popover */}
+          <div 
+            className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-4 max-w-sm w-80"
+            style={{
+              left: `${Math.min(popoverPosition.x - 160, window.innerWidth - 340)}px`,
+              top: `${Math.max(popoverPosition.y - 20, 20)}px`,
+              transform: popoverPosition.y < 200 ? 'translateY(20px)' : 'translateY(-100%)'
+            }}
+          >
+            {/* Arrow */}
+            <div 
+              className="absolute w-3 h-3 bg-white border-l border-t border-gray-200 rotate-45"
+              style={{
+                left: '50%',
+                transform: `translateX(-50%) ${popoverPosition.y < 200 ? 'translateY(-50%)' : 'translateY(50%)'}`,
+                [popoverPosition.y < 200 ? 'top' : 'bottom']: '-6px'
+              }}
+            />
+            
+            {/* Header */}
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 text-xs font-medium rounded ${typeColors[selectedEventForPopover.type]}`}>
+                  {typeLabels[selectedEventForPopover.type]}
+                </span>
+                <span className={`px-2 py-1 text-xs font-medium rounded border ${statusColors[selectedEventForPopover.status]}`}>
+                  {statusLabels[selectedEventForPopover.status]}
+                </span>
+              </div>
+              <button
+                onClick={closePopover}
+                className="text-gray-400 hover:text-gray-600 p-1"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            
+            {/* Title and Description */}
+            <div className="mb-4">
+              <h3 className="font-semibold text-gray-900 mb-1">{selectedEventForPopover.title}</h3>
+              {selectedEventForPopover.description && (
+                <p className="text-sm text-gray-600 mb-2">{selectedEventForPopover.description}</p>
+              )}
+            </div>
+            
+            {/* Details Grid */}
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-blue-500" />
+                  <div>
+                    <p className="text-xs text-gray-500">Data</p>
+                    <p className="font-medium">{new Date(selectedEventForPopover.scheduledDate).toLocaleDateString('it-IT')}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-blue-500" />
+                  <div>
+                    <p className="text-xs text-gray-500">Orario</p>
+                    <p className="font-medium">{formatTime(selectedEventForPopover.scheduledTime)} ({selectedEventForPopover.duration}h)</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-green-500" />
+                  <div>
+                    <p className="text-xs text-gray-500">Assegnato a</p>
+                    <p className="font-medium">{selectedEventForPopover.assignedTo}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-red-500" />
+                  <div>
+                    <p className="text-xs text-gray-500">Ubicazione</p>
+                    <p className="font-medium">{selectedEventForPopover.location}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-purple-500" />
+                <div>
+                  <p className="text-xs text-gray-500">Asset</p>
+                  <p className="font-medium">{selectedEventForPopover.assetName}</p>
+                </div>
+              </div>
+              
+              {selectedEventForPopover.priority && (
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  <div>
+                    <p className="text-xs text-gray-500">Priorità</p>
+                    <span className={`px-2 py-1 text-xs font-medium rounded ${priorityColors[selectedEventForPopover.priority]}`}>
+                      {selectedEventForPopover.priority === 'low' ? 'Bassa' :
+                       selectedEventForPopover.priority === 'medium' ? 'Media' :
+                       selectedEventForPopover.priority === 'high' ? 'Alta' : 'Critica'}
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {selectedEventForPopover.workOrderId && (
+                <div className="flex items-center gap-2">
+                  <Settings className="h-4 w-4 text-green-500" />
+                  <div>
+                    <p className="text-xs text-gray-500">Ordine di lavoro</p>
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-medium">
+                      Sincronizzato #{selectedEventForPopover.workOrderId}
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {selectedEventForPopover.recurrence && (
+                <div className="flex items-center gap-2">
+                  <Settings className="h-4 w-4 text-purple-500" />
+                  <div>
+                    <p className="text-xs text-gray-500">Ricorrenza</p>
+                    <p className="font-medium text-xs">
+                      {selectedEventForPopover.recurrence.type === 'monthly' ? 'Mensile' : 
+                       selectedEventForPopover.recurrence.type === 'weekly' ? 'Settimanale' :
+                       selectedEventForPopover.recurrence.type === 'quarterly' ? 'Trimestrale' : 'Annuale'}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-200">
+              {selectedEventForPopover.status === 'scheduled' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    handleEventStatusUpdate(selectedEventForPopover.id, 'in_progress');
+                    closePopover();
+                  }}
+                  className="flex-1 border-green-200 text-green-700 hover:bg-green-50"
+                >
+                  <Play className="h-3 w-3 mr-1" />
+                  Inizia
+                </Button>
+              )}
+              
+              {selectedEventForPopover.status === 'in_progress' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    handleEventStatusUpdate(selectedEventForPopover.id, 'completed');
+                    closePopover();
+                  }}
+                  className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Completa
+                </Button>
+              )}
+              
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  saveAsTemplate(selectedEventForPopover);
+                  closePopover();
+                }}
+                className="flex-1 border-purple-200 text-purple-700 hover:bg-purple-50"
+              >
+                <Save className="h-3 w-3 mr-1" />
+                Template
+              </Button>
+            </div>
+            
+            {selectedEventForPopover.notes && (
+              <div className="mt-3 p-2 bg-gray-50 rounded text-xs">
+                <strong>Note:</strong> {selectedEventForPopover.notes}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Nuovo Evento Modal */}
