@@ -100,28 +100,10 @@ const technicianColors = [
   'bg-teal-500 border-teal-600'
 ];
 
-// Resource management interfaces
-interface Resource {
-  id: string;
-  name: string;
-  type: 'tool' | 'vehicle' | 'equipment' | 'material';
-  available: boolean;
-  location: string;
-  assignedTo?: string;
-  maintenanceSchedule?: string;
-}
-
-interface TechnicianCapacity {
-  technicianName: string;
-  maxHoursPerDay: number;
-  currentHours: { [date: string]: number };
-  skills: string[];
-  availability: { [date: string]: 'available' | 'busy' | 'off' };
-}
 
 export default function CalendarPage() {
   const [events, setEvents] = useState<MaintenanceEvent[]>([]);
-  const [selectedView, setSelectedView] = useState<'month' | 'week' | 'day' | 'list' | 'analytics' | 'resources'>('month');
+  const [selectedView, setSelectedView] = useState<'month' | 'week' | 'day' | 'list' | 'analytics'>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -137,40 +119,7 @@ export default function CalendarPage() {
   const [selectedEventForPopover, setSelectedEventForPopover] = useState<MaintenanceEvent | null>(null);
   const [popoverPosition, setPopoverPosition] = useState<{x: number, y: number}>({x: 0, y: 0});
   
-  // Resource Management State
-  const [resources, setResources] = useState<Resource[]>([
-    { id: 'r1', name: 'Trapano Professionale', type: 'tool', available: true, location: 'Magazzino A', assignedTo: undefined, maintenanceSchedule: '2025-01-15' },
-    { id: 'r2', name: 'Furgone Iveco', type: 'vehicle', available: false, location: 'Parcheggio', assignedTo: 'Marco Rossi', maintenanceSchedule: '2025-02-01' },
-    { id: 'r3', name: 'Compressore Aria', type: 'equipment', available: true, location: 'Officina', assignedTo: undefined, maintenanceSchedule: '2025-01-20' },
-    { id: 'r4', name: 'Kit Bulloni M8', type: 'material', available: true, location: 'Magazzino B', assignedTo: undefined }
-  ]);
   
-  const [technicianCapacities, setTechnicianCapacities] = useState<TechnicianCapacity[]>([
-    {
-      technicianName: 'Giulia Bianchi',
-      maxHoursPerDay: 8,
-      currentHours: {},
-      skills: ['elettrico', 'idraulico', 'meccanico'],
-      availability: {}
-    },
-    {
-      technicianName: 'Marco Rossi', 
-      maxHoursPerDay: 8,
-      currentHours: {},
-      skills: ['meccanico', 'saldatura'],
-      availability: {}
-    },
-    {
-      technicianName: 'Luca Verdi',
-      maxHoursPerDay: 8,
-      currentHours: {},
-      skills: ['elettrico', 'automazione'],
-      availability: {}
-    }
-  ]);
-  
-  const [showResourceModal, setShowResourceModal] = useState(false);
-  const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
   
   const [newEvent, setNewEvent] = useState({
     title: '',
@@ -399,38 +348,6 @@ export default function CalendarPage() {
     );
   };
 
-  const getResourceIcon = (type: Resource['type']) => {
-    switch (type) {
-      case 'tool': return <Wrench className="h-4 w-4" />;
-      case 'vehicle': return <Truck className="h-4 w-4" />;
-      case 'equipment': return <Zap className="h-4 w-4" />;
-      case 'material': return <Package className="h-4 w-4" />;
-      default: return <Package className="h-4 w-4" />;
-    }
-  };
-
-  const calculateTechnicianWorkload = (technicianName: string, dateRange: { start: Date, end: Date }) => {
-    const capacity = technicianCapacities.find(c => c.technicianName === technicianName);
-    if (!capacity) return { utilizationRate: 0, totalHours: 0, avgDaily: 0, maxDaily: 8 };
-    
-    const eventsInRange = events.filter(e => {
-      const eventDate = new Date(e.scheduledDate);
-      return eventDate >= dateRange.start && eventDate <= dateRange.end && e.assignedTo === technicianName;
-    });
-    
-    const totalHours = eventsInRange.reduce((sum, event) => sum + (event.duration || 0), 0);
-    const daysInRange = Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24));
-    const maxPossibleHours = daysInRange * capacity.maxHoursPerDay;
-    const utilizationRate = maxPossibleHours > 0 ? (totalHours / maxPossibleHours) * 100 : 0;
-    const avgDaily = daysInRange > 0 ? Math.round(totalHours / daysInRange * 10) / 10 : 0;
-    
-    return {
-      utilizationRate: Math.round(utilizationRate),
-      totalHours: totalHours,
-      avgDaily: avgDaily,
-      maxDaily: capacity.maxHoursPerDay
-    };
-  };
 
   // Load templates on component mount
   useEffect(() => {
@@ -1308,180 +1225,6 @@ export default function CalendarPage() {
     </div>
   );
 
-  const renderResourcesView = () => (
-    <div className="space-y-6">
-      {/* Resource Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Risorse Totali</p>
-                <p className="text-2xl font-bold text-blue-600">{resources.length}</p>
-              </div>
-              <Package className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Disponibili</p>
-                <p className="text-2xl font-bold text-green-600">{resources.filter(r => r.available).length}</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">In Uso</p>
-                <p className="text-2xl font-bold text-orange-600">{resources.filter(r => !r.available).length}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Manutenzioni Prossime</p>
-                <p className="text-2xl font-bold text-red-600">{resources.filter(r => r.maintenanceSchedule && new Date(r.maintenanceSchedule) <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)).length}</p>
-              </div>
-              <Wrench className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Resources List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-blue-600" />
-              Gestione Risorse
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {resources.map(resource => (
-                <div key={resource.id} className={`p-3 border rounded-lg ${resource.available ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {getResourceIcon(resource.type)}
-                      <div>
-                        <h4 className="font-medium text-gray-900">{resource.name}</h4>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <MapPin className="h-3 w-3" />
-                          {resource.location}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={`px-2 py-1 rounded-full text-xs font-medium ${resource.available ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                        {resource.available ? 'Disponibile' : 'In Uso'}
-                      </div>
-                      {resource.assignedTo && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Assegnata a: {resource.assignedTo}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {resource.maintenanceSchedule && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      Prossima manutenzione: {new Date(resource.maintenanceSchedule).toLocaleDateString('it-IT')}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Technician Capacity */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-purple-600" />
-              Capacità Tecnici
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {technicianCapacities.map(capacity => {
-                const thisWeekStart = new Date();
-                thisWeekStart.setDate(thisWeekStart.getDate() - thisWeekStart.getDay());
-                const thisWeekEnd = new Date(thisWeekStart);
-                thisWeekEnd.setDate(thisWeekEnd.getDate() + 6);
-                
-                const workload = calculateTechnicianWorkload(capacity.technicianName, { 
-                  start: thisWeekStart, 
-                  end: thisWeekEnd 
-                });
-                
-                return (
-                  <div key={capacity.technicianName} className="p-3 border border-gray-200 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium text-gray-900">{capacity.technicianName}</h4>
-                      <div className="flex items-center gap-2">
-                        <Gauge className="h-4 w-4 text-gray-500" />
-                        <span className={`text-sm font-medium ${
-                          workload.utilizationRate > 80 ? 'text-red-600' :
-                          workload.utilizationRate > 60 ? 'text-orange-600' :
-                          'text-green-600'
-                        }`}>
-                          {workload.utilizationRate}%
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Utilization bar */}
-                    <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-                      <div 
-                        className={`h-2 rounded-full ${
-                          workload.utilizationRate > 80 ? 'bg-red-500' :
-                          workload.utilizationRate > 60 ? 'bg-orange-500' :
-                          'bg-green-500'
-                        }`}
-                        style={{ width: `${Math.min(workload.utilizationRate, 100)}%` }}
-                      ></div>
-                    </div>
-                    
-                    <div className="text-xs text-gray-600 space-y-1">
-                      <div className="flex justify-between">
-                        <span>Ore settimana:</span>
-                        <span>{workload.totalHours}h / {workload.maxDaily * 7}h</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Media giornaliera:</span>
-                        <span>{workload.avgDaily}h</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {capacity.skills.map(skill => (
-                          <span key={skill} className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
 
   const renderListView = () => (
     <div className="space-y-4">
@@ -1767,7 +1510,7 @@ export default function CalendarPage() {
               </div>
 
               <div className="flex bg-gray-100 rounded-md p-1">
-                {(['month', 'week', 'analytics', 'resources', 'list'] as const).map((view) => (
+                {(['month', 'week', 'analytics', 'list'] as const).map((view) => (
                   <Button
                     key={view}
                     variant={selectedView === view ? 'default' : 'ghost'}
@@ -1777,8 +1520,7 @@ export default function CalendarPage() {
                   >
                     {view === 'month' ? 'Mese' : 
                      view === 'week' ? 'Settimana' : 
-                     view === 'analytics' ? 'Analytics' : 
-                     view === 'resources' ? 'Risorse' : 'Lista'}
+                     view === 'analytics' ? 'Analytics' : 'Lista'}
                   </Button>
                 ))}
               </div>
@@ -1852,7 +1594,6 @@ export default function CalendarPage() {
         {selectedView === 'month' && renderMonthView()}
         {selectedView === 'week' && renderWeekView()}
         {selectedView === 'analytics' && renderAnalyticsView()}
-        {selectedView === 'resources' && renderResourcesView()}
         {selectedView === 'list' && renderListView()}
 
         {/* Selected Date Events */}
