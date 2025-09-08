@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getMaintenanceEvents, saveMaintenanceEvent, deleteMaintenanceEvent, initializeStorage, getWorkOrders } from "@/lib/storage";
+import { getMaintenanceEvents, saveMaintenanceEvent, deleteMaintenanceEvent, initializeStorage, getWorkOrders, updateWorkOrderDueDate } from "@/lib/storage";
 import { MaintenanceEvent } from "@/data/mockData";
 import { 
   Calendar as CalendarIcon,
@@ -583,13 +583,26 @@ export default function CalendarPage() {
         scheduledDate: newDateStr
       };
       
+      // Update the calendar event
       saveMaintenanceEvent(updatedEvent);
+      
+      // 🔄 SYNC: Update the linked work order if it exists
+      if (draggedEvent.workOrderId) {
+        const updatedWorkOrder = updateWorkOrderDueDate(draggedEvent.workOrderId, newDateStr);
+        if (updatedWorkOrder) {
+          console.log(`✅ Synchronized work order "${updatedWorkOrder.title}" with calendar event`);
+        }
+      }
+      
       loadEvents();
       setDraggedEvent(null);
       
-      // Show success message
+      // Enhanced success message
       const eventDate = targetDate.toLocaleDateString('it-IT');
-      alert(`Evento "${draggedEvent.title}" spostato al ${eventDate}`);
+      const syncMessage = draggedEvent.workOrderId 
+        ? ` e sincronizzato con l'ordine di lavoro collegato`
+        : '';
+      alert(`✅ Evento "${draggedEvent.title}" spostato al ${eventDate}${syncMessage}`);
     }
   };
 
@@ -878,7 +891,7 @@ export default function CalendarPage() {
                       onDragStart={(e) => handleDragStart(event, e)}
                       onDragEnd={handleDragEnd}
                       className={`text-xs p-1 rounded truncate ${typeColors[event.type]} text-white cursor-move hover:opacity-80 transition-opacity`}
-                      title={`Trascina per spostare: ${event.title}`}
+                      title={`Trascina per spostare: ${event.title}${event.workOrderId ? ' (sincronizzerà anche l\'ordine di lavoro)' : ''}`}
                     >
                       {formatTime(event.scheduledTime)} {event.title}
                     </div>
@@ -989,7 +1002,7 @@ export default function CalendarPage() {
                           top: `${position.top}px`,
                           height: `${Math.max(position.height - 4, 40)}px`
                         }}
-                        title={`${event.title} - ${event.description || ''}`}
+                        title={`${event.title} - ${event.description || ''}${event.workOrderId ? ' 🔗 Sincronizzato con ordine di lavoro' : ''}`}
                       >
                         <div className="font-semibold truncate">
                           {formatTime(event.scheduledTime)} {event.title}
@@ -1076,7 +1089,7 @@ export default function CalendarPage() {
                   <span>Pulizia</span>
                 </div>
                 <div className="text-gray-600 ml-4">
-                  💡 Trascina eventi per spostarli • Click per azioni rapide
+                  💡 Trascina eventi per spostarli (sincronizza automaticamente con ordini di lavoro) • Click per azioni rapide
                 </div>
               </>
             )}

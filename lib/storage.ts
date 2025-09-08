@@ -161,6 +161,26 @@ export function deleteWorkOrder(id: string): WorkOrder[] {
   return workOrders;
 }
 
+export function updateWorkOrderDueDate(workOrderId: string, newDueDate: string): WorkOrder | null {
+  const workOrders = getWorkOrders();
+  const workOrderIndex = workOrders.findIndex(wo => wo.id === workOrderId);
+  
+  if (workOrderIndex >= 0) {
+    const updatedWorkOrder = {
+      ...workOrders[workOrderIndex],
+      dueDate: newDueDate
+    };
+    workOrders[workOrderIndex] = updatedWorkOrder;
+    saveToStorage(STORAGE_KEYS.WORK_ORDERS, workOrders);
+    
+    console.log(`🔄 Updated work order "${updatedWorkOrder.title}" due date to: ${newDueDate}`);
+    return updatedWorkOrder;
+  }
+  
+  console.warn(`⚠️ Work order with ID ${workOrderId} not found`);
+  return null;
+}
+
 // User functions
 export function getUsers(): User[] {
   return getFromStorage<User>(STORAGE_KEYS.USERS, mockUsers);
