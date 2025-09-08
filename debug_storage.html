@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Asset Management Storage</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .button { padding: 10px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .output { background: #f5f5f5; padding: 15px; margin: 10px 0; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Asset Management Storage Debug</h1>
+    
+    <div>
+        <button class="button" onclick="checkStorage()">Check Storage</button>
+        <button class="button" onclick="checkWorkOrder()">Check Work Order with Comments</button>
+        <button class="button" onclick="simulateStatusChange()">Simulate Status Change</button>
+        <button class="button" onclick="clearOutput()">Clear Output</button>
+    </div>
+
+    <div id="output" class="output"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+        }
+
+        function checkStorage() {
+            log('=== CHECKING LOCALSTORAGE ===');
+            
+            const keys = Object.keys(localStorage).filter(key => 
+                key.startsWith('asset_management_')
+            );
+            
+            if (keys.length === 0) {
+                log('❌ No asset management data found in localStorage', 'error');
+                return;
+            }
+            
+            log(`✅ Found ${keys.length} asset management keys:`, 'success');
+            keys.forEach(key => log(`  - ${key}`));
+            
+            // Check work orders specifically
+            const workOrdersData = localStorage.getItem('asset_management_work_orders');
+            if (workOrdersData) {
+                try {
+                    const workOrders = JSON.parse(workOrdersData);
+                    log(`\n📋 Found ${workOrders.length} work orders`);
+                    
+                    const withComments = workOrders.filter(wo => wo.comments && wo.comments.length > 0);
+                    log(`💬 ${withComments.length} work orders have comments`);
+                    
+                } catch (error) {
+                    log(`❌ Error parsing work orders: ${error.message}`, 'error');
+                }
+            } else {
+                log('❌ No work orders data found', 'error');
+            }
+        }
+
+        function checkWorkOrder() {
+            log('\n=== CHECKING SPECIFIC WORK ORDER ===');
+            
+            const workOrdersData = localStorage.getItem('asset_management_work_orders');
+            if (!workOrdersData) {
+                log('❌ No work orders found', 'error');
+                return;
+            }
+            
+            try {
+                const workOrders = JSON.parse(workOrdersData);
+                const firstWO = workOrders[0];
+                
+                if (!firstWO) {
+                    log('❌ No work orders available', 'error');
+                    return;
+                }
+                
+                log(`📋 Work Order: "${firstWO.title}"`);
+                log(`   ID: ${firstWO.id}`);
+                log(`   Status: ${firstWO.status}`);
+                log(`   Comments: ${firstWO.comments ? firstWO.comments.length : 0}`);
+                
+                if (firstWO.comments && firstWO.comments.length > 0) {
+                    log('\n💬 Comments:');
+                    firstWO.comments.forEach((comment, index) => {
+                        log(`   ${index + 1}. [${comment.type}] ${comment.userName}: ${comment.message}`);
+                        if (comment.statusChange) {
+                            log(`      Status: ${comment.statusChange.from} → ${comment.statusChange.to}`);
+                        }
+                        log(`      Time: ${comment.timestamp}`);
+                    });
+                } else {
+                    log('   ℹ️  No comments found');
+                }
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function simulateStatusChange() {
+            log('\n=== SIMULATING STATUS CHANGE ===');
+            
+            const workOrdersData = localStorage.getItem('asset_management_work_orders');
+            if (!workOrdersData) {
+                log('❌ No work orders found', 'error');
+                return;
+            }
+            
+            try {
+                const workOrders = JSON.parse(workOrdersData);
+                const testWO = workOrders[0];
+                
+                if (!testWO) {
+                    log('❌ No work orders available', 'error');
+                    return;
+                }
+                
+                log(`📋 Simulating status change on: "${testWO.title}"`);
+                log(`   Current status: ${testWO.status}`);
+                
+                // Add a new comment
+                const now = new Date().toISOString();
+                const newComment = {
+                    id: `c-debug-${Date.now()}`,
+                    workOrderId: testWO.id,
+                    userId: '1',
+                    userName: 'Debug Test',
+                    userAvatar: 'DT',
+                    message: 'Debug test status change.',
+                    timestamp: now,
+                    type: 'status_change',
+                    statusChange: { from: testWO.status, to: 'in_progress' }
+                };
+                
+                // Update work order
+                const existingComments = testWO.comments || [];
+                testWO.comments = [...existingComments, newComment];
+                testWO.status = 'in_progress';
+                
+                // Save back to localStorage
+                workOrders[0] = testWO;
+                localStorage.setItem('asset_management_work_orders', JSON.stringify(workOrders));
+                
+                log(`✅ Added comment and changed status to: in_progress`, 'success');
+                log(`💾 Saved to localStorage`);
+                log(`💬 Total comments now: ${testWO.comments.length}`);
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-run on page load
+        window.onload = function() {
+            log('🚀 Storage Debug Tool Loaded');
+            checkStorage();
+        };
+    </script>
+</body>
+</html>
