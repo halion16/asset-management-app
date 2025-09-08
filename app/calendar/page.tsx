@@ -1153,10 +1153,11 @@ export default function CalendarPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Eventi Recenti</p>
-                <p className="text-2xl font-bold text-purple-600">{analytics.recentEvents}</p>
+                <p className="text-sm text-gray-600">Asset Critici</p>
+                <p className="text-2xl font-bold text-orange-600">{analytics.criticalAssets}</p>
+                <p className="text-xs text-gray-500">Richiedono attenzione</p>
               </div>
-              <TrendingUp className="h-8 w-8 text-purple-600" />
+              <AlertTriangle className="h-8 w-8 text-orange-600" />
             </div>
           </CardContent>
         </Card>
@@ -1176,35 +1177,58 @@ export default function CalendarPage() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Technician Workload */}
+        {/* Asset Maintenance Status */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Carico di Lavoro per Tecnico
+              <Target className="h-5 w-5" />
+              Stato Manutenzioni per Asset
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {Object.entries(analytics.technicianWorkload).map(([tech, count]) => (
-                <div key={tech} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <User className="h-4 w-4 text-blue-600" />
+              {Object.entries(analytics.assetMaintenanceStats).slice(0, 5).map(([assetName, stats]) => {
+                const completionRate = stats.total > 0 ? (stats.completed / stats.total) * 100 : 0;
+                const hasOverdue = stats.overdue > 0;
+                
+                return (
+                  <div key={assetName} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        hasOverdue ? 'bg-red-100' : completionRate > 80 ? 'bg-green-100' : 'bg-yellow-100'
+                      }`}>
+                        <Package className={`h-4 w-4 ${
+                          hasOverdue ? 'text-red-600' : completionRate > 80 ? 'text-green-600' : 'text-yellow-600'
+                        }`} />
+                      </div>
+                      <div>
+                        <span className="font-medium text-sm">{assetName}</span>
+                        {stats.lastMaintenance && (
+                          <p className="text-xs text-gray-500">
+                            Ultima: {stats.lastMaintenance.toLocaleDateString('it-IT')}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <span className="font-medium">{tech}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full" 
-                        style={{ width: `${Math.min((count / Math.max(...Object.values(analytics.technicianWorkload))) * 100, 100)}%` }}
-                      ></div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full ${
+                            hasOverdue ? 'bg-red-500' : completionRate > 80 ? 'bg-green-500' : 'bg-yellow-500'
+                          }`}
+                          style={{ width: `${Math.min(completionRate, 100)}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-semibold">{stats.completed}/{stats.total}</span>
+                        {hasOverdue && (
+                          <p className="text-xs text-red-600">{stats.overdue} in ritardo</p>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-sm font-semibold min-w-[2rem]">{count}</span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -1497,10 +1521,41 @@ export default function CalendarPage() {
       .reduce((acc, e) => acc + parseFloat(e.actualTime || '0'), 0) / 
       Math.max(1, events.filter(e => e.status === 'completed' && e.actualTime).length);
 
-    const technicianWorkload = events.reduce((acc, event) => {
+    // Asset maintenance frequency (for retail context)
+    const assetMaintenanceStats = events.reduce((acc, event) => {
+      const assetName = event.assetName || 'Asset Sconosciuto';
+      if (!acc[assetName]) {
+        acc[assetName] = {
+          total: 0,
+          completed: 0,
+          overdue: 0,
+          lastMaintenance: null
+        };
+      }
+      acc[assetName].total++;
+      if (event.status === 'completed') {
+        acc[assetName].completed++;
+        const eventDate = new Date(event.scheduledDate);
+        if (!acc[assetName].lastMaintenance || eventDate > acc[assetName].lastMaintenance) {
+          acc[assetName].lastMaintenance = eventDate;
+        }
+      }
+      if (event.status === 'overdue') {
+        acc[assetName].overdue++;
+      }
+      return acc;
+    }, {} as Record<string, {total: number, completed: number, overdue: number, lastMaintenance: Date | null}>);
+
+    // User assignment distribution (instead of technician workload)
+    const userAssignmentStats = events.reduce((acc, event) => {
       acc[event.assignedTo] = (acc[event.assignedTo] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
+
+    // Assets requiring immediate attention (retail business metric)
+    const criticalAssets = Object.entries(assetMaintenanceStats).filter(([_, stats]) => 
+      stats.overdue > 0 || (stats.total > 0 && (stats.completed / stats.total) < 0.5)
+    ).length;
 
     const typeDistribution = events.reduce((acc, event) => {
       acc[event.type] = (acc[event.type] || 0) + 1;
@@ -1523,8 +1578,9 @@ export default function CalendarPage() {
       completionRate: Math.round(completionRate),
       averageTime: Math.round(averageCompletionTime * 10) / 10,
       totalEvents: events.length,
-      recentEvents: recentEvents.length,
-      technicianWorkload,
+      criticalAssets,
+      assetMaintenanceStats,
+      userAssignmentStats,
       typeDistribution,
       monthlyTrend,
       overdueEvents: events.filter(e => e.status === 'overdue').length
