@@ -502,7 +502,7 @@ export default function AssetsPage() {
         {/* Assets List */}
         {currentView === 'list' && (
           <div className="flex-1 overflow-y-auto">
-          <div className="p-2">
+            <div className="p-2">
             <div className="text-xs font-medium text-gray-500 mb-2 px-2">
               Ordina per: Nome
             </div>
@@ -547,12 +547,13 @@ export default function AssetsPage() {
                 <p className="text-gray-500 text-sm">Nessun asset trovato</p>
               </div>
             )}
+            </div>
           </div>
         )}
       </div>
-
-      {/* Right Column - Asset Details or Analytics */}
+      
       <div className="flex-1 flex flex-col bg-white">
+        {/* Right Column - Asset Details or Analytics */}
         {currentView === 'analytics' ? (
           <div className="flex-1 overflow-y-auto p-6">
             {renderAnalyticsView()}
