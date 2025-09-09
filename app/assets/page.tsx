@@ -50,7 +50,8 @@ import {
   Save,
   Trash2,
   Shield,
-  Power
+  Power,
+  Layers
 } from "lucide-react";
 
 export default function AssetsPage() {
@@ -69,6 +70,7 @@ export default function AssetsPage() {
   const [showDocumentForm, setShowDocumentForm] = useState(false);
   const [showProgramModal, setShowProgramModal] = useState(false);
   const [showSubAssetForm, setShowSubAssetForm] = useState(false);
+  const [showSubAssetsList, setShowSubAssetsList] = useState(false);
   const [expandedAssets, setExpandedAssets] = useState<Set<string>>(new Set());
   const [programActiveTab, setProgramActiveTab] = useState<'settings' | 'forecast'>('settings');
   const [newDocument, setNewDocument] = useState({
@@ -372,6 +374,17 @@ export default function AssetsPage() {
       
       return true;
     });
+  };
+
+  const getSubAssets = (parentAssetId: string) => {
+    return assets.filter(asset => asset.parentId === parentAssetId);
+  };
+
+  const handleShowSubAssets = (asset: Asset) => {
+    if (asset.hasChildren) {
+      setSelectedAsset(asset);
+      setShowSubAssetsList(true);
+    }
   };
 
   const handleQuickUpdateAsset = (assetId: string, updates: Partial<Asset>) => {
@@ -910,9 +923,23 @@ export default function AssetsPage() {
                     </h3>
                     <div className="text-xs text-gray-500 space-y-1">
                       <div>{asset.category} • {asset.location}</div>
-                      <div className="flex items-center gap-2">
-                        <span>€{asset.value.toLocaleString()}</span>
-                        <span className="text-blue-600">• {asset.brand}</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span>€{asset.value.toLocaleString()}</span>
+                          <span className="text-blue-600">• {asset.brand}</span>
+                        </div>
+                        {asset.hasChildren && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShowSubAssets(asset);
+                            }}
+                            className="p-1 rounded-full hover:bg-blue-100 transition-colors group"
+                            title={`Visualizza sotto-attrezzature (${asset.childrenIds.length})`}
+                          >
+                            <Layers className="h-3.5 w-3.5 text-blue-600 group-hover:text-blue-700" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1174,14 +1201,26 @@ export default function AssetsPage() {
                     <div>
                       <label className="block text-sm text-gray-500 mb-1 flex items-center justify-between">
                         Stato
-                        <button
-                          onClick={() => setShowSubAssetForm(true)}
-                          className="flex items-center gap-1 px-2 py-1 rounded-full hover:bg-blue-100 transition-colors group"
-                          title="Crea sotto-Attrezzature"
-                        >
-                          <PlusCircle className="h-4.5 w-4.5 text-blue-600 group-hover:text-blue-700" />
-                          <span className="text-sm text-blue-600 group-hover:text-blue-700 font-medium">Crea sotto-Attrezzature</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowSubAssetForm(true)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-full hover:bg-blue-100 transition-colors group"
+                            title="Crea sotto-Attrezzature"
+                          >
+                            <PlusCircle className="h-4.5 w-4.5 text-blue-600 group-hover:text-blue-700" />
+                            <span className="text-sm text-blue-600 group-hover:text-blue-700 font-medium">Crea sotto-Attrezzature</span>
+                          </button>
+                          {selectedAsset.hasChildren && (
+                            <button
+                              onClick={() => handleShowSubAssets(selectedAsset)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-full hover:bg-green-100 transition-colors group"
+                              title={`Visualizza sotto-attrezzature (${selectedAsset.childrenIds.length})`}
+                            >
+                              <Layers className="h-4.5 w-4.5 text-green-600 group-hover:text-green-700" />
+                              <span className="text-sm text-green-600 group-hover:text-green-700 font-medium">Visualizza ({selectedAsset.childrenIds.length})</span>
+                            </button>
+                          )}
+                        </div>
                       </label>
                       <div className={`inline-flex px-2 py-1 rounded text-sm font-medium ${getStatusColor(selectedAsset.status)}`}>
                         {getStatusLabel(selectedAsset.status)}
@@ -1466,6 +1505,170 @@ export default function AssetsPage() {
           onSave={handleCreateSubAsset}
           onCancel={() => setShowSubAssetForm(false)}
         />
+      )}
+
+      {/* Sub Assets List Modal */}
+      {showSubAssetsList && selectedAsset && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Layers className="h-5 w-5 text-green-600" />
+                  Sotto-attrezzature di {selectedAsset.name}
+                </CardTitle>
+                <p className="text-sm text-gray-500 mt-1">
+                  {getSubAssets(selectedAsset.id).length} elementi trovati
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setShowSubAssetsList(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            
+            <CardContent className="p-0">
+              {getSubAssets(selectedAsset.id).length === 0 ? (
+                <div className="text-center py-12">
+                  <Layers className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">Nessuna sotto-attrezzatura trovata</p>
+                  <Button
+                    onClick={() => {
+                      setShowSubAssetsList(false);
+                      setShowSubAssetForm(true);
+                    }}
+                    className="mt-4"
+                  >
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    Crea prima sotto-attrezzatura
+                  </Button>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-200">
+                  {getSubAssets(selectedAsset.id).map((subAsset) => (
+                    <div
+                      key={subAsset.id}
+                      className="p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => {
+                        setSelectedAsset(subAsset);
+                        setShowSubAssetsList(false);
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Sub Asset Icon */}
+                        <div className={`w-10 h-10 rounded flex items-center justify-center text-white text-sm font-medium ${
+                          subAsset.level === 1 ? 'bg-green-600' : 'bg-purple-600'
+                        }`}>
+                          {subAsset.level === 1 ? '•' : '◦'}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium text-gray-900 text-base">
+                              {subAsset.name}
+                            </h4>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(subAsset.status)}`}>
+                                {getStatusLabel(subAsset.status)}
+                              </span>
+                              {subAsset.hasChildren && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShowSubAssets(subAsset);
+                                  }}
+                                  className="p-1 rounded-full hover:bg-blue-100 transition-colors"
+                                  title={`${subAsset.childrenIds.length} sotto-componenti`}
+                                >
+                                  <Layers className="h-3.5 w-3.5 text-blue-600" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="text-sm text-gray-600 mb-2">
+                            {subAsset.model && (
+                              <p className="mb-1">{subAsset.model}</p>
+                            )}
+                            <div className="flex items-center gap-4 text-xs text-gray-500">
+                              <span>{subAsset.brand || 'N/A'}</span>
+                              <span>€{subAsset.value.toLocaleString()}</span>
+                              {subAsset.serialNumber && (
+                                <span className="font-mono">{subAsset.serialNumber}</span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs text-gray-500">
+                              Livello {subAsset.level + 1} • {subAsset.category}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedAsset(subAsset);
+                                  setShowSubAssetsList(false);
+                                }}
+                                className="text-xs"
+                              >
+                                Visualizza dettagli
+                              </Button>
+                              {subAsset.level < 2 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedAsset(subAsset);
+                                    setShowSubAssetsList(false);
+                                    setShowSubAssetForm(true);
+                                  }}
+                                  className="text-xs text-blue-600"
+                                >
+                                  <PlusCircle className="h-3 w-3 mr-1" />
+                                  Aggiungi sotto-componente
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Footer Actions */}
+              <div className="p-4 border-t border-gray-200 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    {getSubAssets(selectedAsset.id).length} sotto-attrezzature di {selectedAsset.name}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowSubAssetsList(false)}
+                    >
+                      Chiudi
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowSubAssetsList(false);
+                        setShowSubAssetForm(true);
+                      }}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Aggiungi sotto-attrezzatura
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Document Form Modal */}
