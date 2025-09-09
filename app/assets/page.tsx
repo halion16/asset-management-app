@@ -44,7 +44,10 @@ import {
   Sliders,
   Mail,
   Smartphone,
-  Save
+  Save,
+  Trash2,
+  Shield,
+  Power
 } from "lucide-react";
 
 export default function AssetsPage() {
@@ -84,11 +87,27 @@ export default function AssetsPage() {
     emailNotifications: true,
     smsAlerts: false
   });
+  const [activePopover, setActivePopover] = useState<string | null>(null);
+  const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
 
   useEffect(() => {
     initializeStorage();
     loadAssets();
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (activePopover && !(event.target as Element).closest('[data-popover]')) {
+        setActivePopover(null);
+        setActiveSubmenu(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activePopover]);
 
   const loadAssets = () => {
     const assetsData = getAssets();
@@ -158,6 +177,24 @@ export default function AssetsPage() {
     }));
     
     setNewComment('');
+  };
+
+  const addToHistory = (assetId: string, type: string, title: string, description: string) => {
+    const newHistoryItem = {
+      id: Date.now().toString(),
+      type,
+      title,
+      description,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+      user: 'David Luchetta',
+      status: 'completed'
+    };
+    
+    setAssetHistory(prev => ({
+      ...prev,
+      [assetId]: [newHistoryItem, ...(prev[assetId] || [])]
+    }));
   };
 
   const handleCreateWorkOrder = (workOrder: WorkOrder) => {
@@ -276,6 +313,80 @@ export default function AssetsPage() {
   const handleEditAsset = (asset: Asset) => {
     setEditingAsset(asset);
     setShowForm(true);
+  };
+
+  const handleQuickUpdateAsset = (assetId: string, updates: Partial<Asset>) => {
+    const updatedAssets = assets.map(asset => 
+      asset.id === assetId ? { ...asset, ...updates } : asset
+    );
+    setAssets(updatedAssets);
+    
+    // Update selected asset if it's the one being modified
+    if (selectedAsset?.id === assetId) {
+      setSelectedAsset({ ...selectedAsset, ...updates });
+    }
+    
+    // Save to storage
+    const updatedAsset = updatedAssets.find(a => a.id === assetId);
+    if (updatedAsset) {
+      saveAsset(updatedAsset);
+    }
+    
+    setActivePopover(null);
+    setActiveSubmenu(null);
+  };
+
+  const handleQuickAction = (action: string, asset: Asset, value?: any) => {
+    const currentTime = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    
+    switch (action) {
+      case 'location':
+        const oldLocation = asset.location;
+        handleQuickUpdateAsset(asset.id, { location: value });
+        addToHistory(
+          asset.id, 
+          'location', 
+          'Ubicazione modificata', 
+          `Ubicazione cambiata da "${oldLocation}" a "${value}"`
+        );
+        break;
+      case 'priority':
+        const oldPriority = asset.priority;
+        const priorityLabels = { low: 'Bassa', medium: 'Media', high: 'Alta', critical: 'Critica' };
+        handleQuickUpdateAsset(asset.id, { priority: value });
+        addToHistory(
+          asset.id, 
+          'priority', 
+          'Criticità modificata', 
+          `Criticità cambiata da "${priorityLabels[oldPriority]}" a "${priorityLabels[value]}"`
+        );
+        break;
+      case 'status':
+        const oldStatus = asset.status;
+        const statusLabels = { operational: 'Operativo', maintenance: 'Manutenzione', down: 'Fermo', retired: 'Dismesso' };
+        handleQuickUpdateAsset(asset.id, { status: value });
+        addToHistory(
+          asset.id, 
+          'status', 
+          'Stato modificato', 
+          `Stato cambiato da "${statusLabels[oldStatus]}" a "${statusLabels[value]}"`
+        );
+        break;
+      case 'delete':
+        if (confirm(`Sei sicuro di voler eliminare "${asset.name}"?`)) {
+          addToHistory(
+            asset.id, 
+            'deleted', 
+            'Asset eliminato', 
+            `Asset "${asset.name}" eliminato dal sistema`
+          );
+          // Give a small delay to ensure history is updated before deletion
+          setTimeout(() => {
+            handleDeleteAsset(asset.id);
+          }, 100);
+        }
+        break;
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -689,14 +800,16 @@ export default function AssetsPage() {
             {filteredAssets.map((asset) => (
               <div
                 key={asset.id}
-                onClick={() => setSelectedAsset(asset)}
-                className={`p-3 mb-2 rounded-lg cursor-pointer transition-colors ${
+                className={`relative p-3 mb-2 rounded-lg cursor-pointer transition-colors ${
                   selectedAsset?.id === asset.id
                     ? 'bg-blue-50 border-l-4 border-blue-500'
                     : 'hover:bg-gray-50'
                 }`}
               >
-                <div className="flex items-start gap-3">
+                <div 
+                  className="flex items-start gap-3"
+                  onClick={() => setSelectedAsset(asset)}
+                >
                   <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
                     {asset.name.substring(0, 2).toUpperCase()}
                   </div>
@@ -717,6 +830,156 @@ export default function AssetsPage() {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Quick Actions Menu */}
+                <div className="absolute top-2 right-2" data-popover>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActivePopover(activePopover === asset.id ? null : asset.id);
+                    }}
+                    className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+
+                  {/* Popover Menu */}
+                  {activePopover === asset.id && (
+                    <div className="absolute top-8 right-0 z-50 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[200px]" data-popover>
+                      {/* Modifica Ubicazione */}
+                      <div className="relative">
+                        <button 
+                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 justify-between"
+                          onClick={() => setActiveSubmenu(activeSubmenu === `${asset.id}-location` ? null : `${asset.id}-location`)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4" />
+                            Modifica Ubicazione
+                          </div>
+                          <ChevronDown className={`h-3 w-3 transition-transform ${activeSubmenu === `${asset.id}-location` ? 'rotate-180' : ''}`} />
+                        </button>
+                        {/* Submenu Ubicazione */}
+                        {activeSubmenu === `${asset.id}-location` && (
+                          <div className="ml-4 border-l border-gray-100 pl-2 py-1 relative">
+                            <div className="max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 hover:scrollbar-thumb-gray-400 pr-2">
+                              {[
+                                'Milano - Sede Centrale',
+                                'Milano - Deposito Nord',
+                                'Milano - Filiale Centro', 
+                                'Franciocorta - Stabilimento',
+                                'Franciocorta - Magazzino A',
+                                'Franciocorta - Magazzino B',
+                                'Bergamo - Uffici',
+                                'Bergamo - Laboratorio',
+                                'Produzione - Linea 1',
+                                'Produzione - Linea 2', 
+                                'Produzione - Linea 3',
+                                'Produzione - Area Controllo',
+                                'Manutenzione - Officina',
+                                'Manutenzione - Deposito Ricambi',
+                                'Logistica - Carico/Scarico',
+                                'Logistica - Spedizioni',
+                                'Amministrazione - Piano Terra',
+                                'Amministrazione - Primo Piano',
+                                'IT - Server Room',
+                                'IT - Ufficio Tecnico'
+                              ].map(location => (
+                                <button
+                                  key={location}
+                                  onClick={() => handleQuickAction('location', asset, location)}
+                                  className="w-full px-3 py-1.5 text-left text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded transition-colors mb-0.5"
+                                >
+                                  {location}
+                                </button>
+                              ))}
+                            </div>
+                            {/* Scroll indicator */}
+                            <div className="absolute bottom-0 right-2 text-xs text-gray-400 bg-white px-1 pointer-events-none">
+                              ↕ scroll
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Modifica Criticità */}
+                      <div className="relative">
+                        <button 
+                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 justify-between"
+                          onClick={() => setActiveSubmenu(activeSubmenu === `${asset.id}-priority` ? null : `${asset.id}-priority`)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Shield className="h-4 w-4" />
+                            Modifica Criticità
+                          </div>
+                          <ChevronDown className={`h-3 w-3 transition-transform ${activeSubmenu === `${asset.id}-priority` ? 'rotate-180' : ''}`} />
+                        </button>
+                        {/* Submenu Criticità */}
+                        {activeSubmenu === `${asset.id}-priority` && (
+                          <div className="ml-4 border-l border-gray-100 pl-2 py-1">
+                            {[
+                              { value: 'low', label: 'Bassa', color: 'text-green-600' },
+                              { value: 'medium', label: 'Media', color: 'text-yellow-600' },
+                              { value: 'high', label: 'Alta', color: 'text-orange-600' },
+                              { value: 'critical', label: 'Critica', color: 'text-red-600' }
+                            ].map(priority => (
+                              <button
+                                key={priority.value}
+                                onClick={() => handleQuickAction('priority', asset, priority.value)}
+                                className={`w-full px-3 py-1 text-left text-sm hover:bg-gray-50 ${priority.color}`}
+                              >
+                                {priority.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Modifica Stato */}
+                      <div className="relative">
+                        <button 
+                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 justify-between"
+                          onClick={() => setActiveSubmenu(activeSubmenu === `${asset.id}-status` ? null : `${asset.id}-status`)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Power className="h-4 w-4" />
+                            Modifica Stato
+                          </div>
+                          <ChevronDown className={`h-3 w-3 transition-transform ${activeSubmenu === `${asset.id}-status` ? 'rotate-180' : ''}`} />
+                        </button>
+                        {/* Submenu Stato */}
+                        {activeSubmenu === `${asset.id}-status` && (
+                          <div className="ml-4 border-l border-gray-100 pl-2 py-1">
+                            {[
+                              { value: 'operational', label: 'Operativo', color: 'text-green-600' },
+                              { value: 'maintenance', label: 'Manutenzione', color: 'text-orange-600' },
+                              { value: 'down', label: 'Fermo', color: 'text-red-600' },
+                              { value: 'retired', label: 'Dismesso', color: 'text-gray-600' }
+                            ].map(status => (
+                              <button
+                                key={status.value}
+                                onClick={() => handleQuickAction('status', asset, status.value)}
+                                className={`w-full px-3 py-1 text-left text-sm hover:bg-gray-50 ${status.color}`}
+                              >
+                                {status.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="border-t border-gray-100 my-1"></div>
+
+                      {/* Elimina */}
+                      <button
+                        onClick={() => handleQuickAction('delete', asset)}
+                        className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Elimina
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -1002,12 +1265,24 @@ export default function AssetsPage() {
                         item.type === 'maintenance' ? 'bg-blue-500' :
                         item.type === 'inspection' ? 'bg-orange-500' :
                         item.type === 'comment' ? 'bg-purple-500' :
+                        item.type === 'workorder' ? 'bg-indigo-500' :
+                        item.type === 'document' ? 'bg-cyan-500' :
+                        item.type === 'location' ? 'bg-teal-500' :
+                        item.type === 'priority' ? 'bg-yellow-500' :
+                        item.type === 'status' ? 'bg-blue-600' :
+                        item.type === 'deleted' ? 'bg-red-500' :
                         'bg-gray-500'
                       }`}>
                         {item.type === 'created' ? '✓' :
                          item.type === 'maintenance' ? '⚙' :
                          item.type === 'inspection' ? '👁' :
-                         item.type === 'comment' ? '💬' : '•'}
+                         item.type === 'comment' ? '💬' :
+                         item.type === 'workorder' ? '📋' :
+                         item.type === 'document' ? '📄' :
+                         item.type === 'location' ? '📍' :
+                         item.type === 'priority' ? '🛡' :
+                         item.type === 'status' ? '⚡' :
+                         item.type === 'deleted' ? '🗑' : '•'}
                       </div>
                       
                       {/* Content */}
