@@ -1773,7 +1773,7 @@ Esportato il: ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLoca
             setShowCategoriesModal(false);
             setCategoriesWorkOrder(null);
           }}
-          currentCategories={categoriesWorkOrder.categories || []}
+          currentCategories={categoriesWorkOrder?.categoryId ? [categoriesWorkOrder.categoryId] : []}
           onCategoriesChange={handleCategoriesChange}
           title="Modifica categoria:"
         />

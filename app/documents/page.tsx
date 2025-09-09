@@ -195,7 +195,8 @@ export default function DocumentsPage() {
       category: newDocument.category,
       fileName: newDocument.fileName,
       fileSize: newDocument.fileSize,
-      filePath: `/uploads/${newDocument.fileName}`, // Simulated path
+      fileUrl: `/uploads/${newDocument.fileName}`, // Simulated path
+      mimeType: 'application/octet-stream', // Default MIME type
       uploadedDate: new Date().toISOString(),
       uploadedBy: 'David Luchetta',
       tags: newDocument.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),

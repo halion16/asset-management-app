@@ -169,7 +169,7 @@ export default function ReportsPage() {
         Categoria: asset.category,
         Stato: asset.status,
         Ubicazione: asset.location,
-        Valore: asset.purchasePrice,
+        Valore: asset.value,
         'Data Acquisto': asset.purchaseDate
       })),
       workOrders: workOrders.map(wo => ({
@@ -186,7 +186,7 @@ export default function ReportsPage() {
         Tipo: req.type,
         Priorità: req.priority,
         Stato: req.status,
-        'Data Creazione': req.createdDate,
+        'Data Creazione': req.requestedDate,
         Richiedente: req.requestedBy
       }))
     };

@@ -224,7 +224,7 @@ export default function PartsPage() {
                   <p className="text-xs text-gray-600">{part.partNumber}</p>
                 </div>
                 {part.isCritical && (
-                  <Shield className="h-4 w-4 text-red-500" title="Parte critica" />
+                  <Shield className="h-4 w-4 text-red-500" />
                 )}
               </div>
               

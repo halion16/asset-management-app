@@ -170,7 +170,9 @@ export default function PurchaseOrdersPage() {
 
     const items = newOrder.items.map((item, index) => ({
       id: (Date.now() + index).toString(),
+      partId: `part-${index + 1}`,
       partName: item.partName,
+      partNumber: `PN-${index + 1000}`,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       totalPrice: item.quantity * item.unitPrice,
@@ -179,6 +181,13 @@ export default function PurchaseOrdersPage() {
 
     const total = items.reduce((sum, item) => sum + item.totalPrice, 0);
 
+    const taxRate = 22; // 22% IVA
+    const subtotal = total;
+    const tax = (subtotal * taxRate) / 100;
+    const shipping = 0;
+    const discount = 0;
+    const finalTotal = subtotal + tax + shipping - discount;
+
     const purchaseOrder: PurchaseOrder = {
       id: Date.now().toString(),
       orderNumber: `PO-${Date.now().toString().slice(-6)}`,
@@ -186,12 +195,18 @@ export default function PurchaseOrdersPage() {
       description: newOrder.description,
       status: 'draft',
       priority: newOrder.priority,
+      supplierId: `supplier-${Date.now()}`,
       supplierName: newOrder.supplierName,
       requestedBy: 'David Luchetta',
       createdDate: new Date().toISOString().split('T')[0],
       expectedDelivery: newOrder.expectedDelivery || undefined,
       items,
-      total,
+      subtotal,
+      tax,
+      taxRate,
+      shipping,
+      discount,
+      total: finalTotal,
       currency: 'EUR'
     };
 

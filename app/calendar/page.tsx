@@ -100,9 +100,24 @@ const technicianColors = [
   'bg-teal-500 border-teal-600'
 ];
 
+interface Resource {
+  id: string;
+  name: string;
+  type: string;
+  available: boolean;
+  location: string;
+}
+
+interface TechnicianCapacity {
+  technicianName: string;
+  maxHours: number;
+  currentHours: { [date: string]: number };
+}
 
 export default function CalendarPage() {
   const [events, setEvents] = useState<MaintenanceEvent[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [technicianCapacities, setTechnicianCapacities] = useState<TechnicianCapacity[]>([]);
   const [selectedView, setSelectedView] = useState<'month' | 'week' | 'day' | 'list' | 'analytics'>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -126,13 +141,13 @@ export default function CalendarPage() {
     description: '',
     assetId: '',
     assetName: '',
-    type: 'preventive' as const,
+    type: 'preventive' as 'preventive' | 'inspection' | 'calibration' | 'cleaning',
     scheduledDate: '',
     scheduledTime: '09:00',
     duration: 2,
     assignedTo: 'Giulia Bianchi',
     location: 'Franciocorta',
-    priority: 'medium' as const,
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
     recurrence: {
       enabled: false,
       type: 'monthly' as const,
@@ -143,8 +158,28 @@ export default function CalendarPage() {
   useEffect(() => {
     initializeStorage();
     loadEvents();
+    loadResources();
     syncWorkOrdersToCalendar();
   }, []);
+
+  const loadResources = () => {
+    // Mock resources data
+    const mockResources: Resource[] = [
+      { id: '1', name: 'Tecnico Specializzato', type: 'personnel', available: true, location: 'Sede Centrale' },
+      { id: '2', name: 'Strumentazione A', type: 'equipment', available: true, location: 'Magazzino' },
+      { id: '3', name: 'Veicolo Servizio', type: 'vehicle', available: false, location: 'Parcheggio' },
+      { id: '4', name: 'Attrezzature Sicurezza', type: 'safety', available: true, location: 'Deposito' }
+    ];
+    setResources(mockResources);
+
+    // Mock technician capacities data
+    const mockCapacities: TechnicianCapacity[] = [
+      { technicianName: 'Mario Rossi', maxHours: 8, currentHours: {} },
+      { technicianName: 'Giuseppe Bianchi', maxHours: 8, currentHours: {} },
+      { technicianName: 'Anna Verdi', maxHours: 6, currentHours: {} }
+    ];
+    setTechnicianCapacities(mockCapacities);
+  };
 
   const syncWorkOrdersToCalendar = () => {
     try {
@@ -295,14 +330,14 @@ export default function CalendarPage() {
     
     const currentHours = capacity.currentHours[eventDate] || 0;
     const newTotalHours = currentHours + eventDuration;
-    const withinCapacity = newTotalHours <= capacity.maxHoursPerDay;
+    const withinCapacity = newTotalHours <= capacity.maxHours;
     
     return { 
       withinCapacity, 
       currentHours, 
-      maxHours: capacity.maxHoursPerDay,
+      maxHours: capacity.maxHours,
       newTotal: newTotalHours,
-      reason: withinCapacity ? '' : `Supererebbe la capacità giornaliera (${newTotalHours}/${capacity.maxHoursPerDay} ore)`
+      reason: withinCapacity ? '' : `Supererebbe la capacità giornaliera (${newTotalHours}/${capacity.maxHours} ore)`
     };
   };
 
@@ -479,11 +514,11 @@ export default function CalendarPage() {
     setDraggedEvent(event);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/html', e.currentTarget.outerHTML);
-    e.currentTarget.style.opacity = '0.5';
+    (e.currentTarget as HTMLElement).style.opacity = '0.5';
   };
 
   const handleDragEnd = (e: React.DragEvent) => {
-    e.currentTarget.style.opacity = '1';
+    (e.currentTarget as HTMLElement).style.opacity = '1';
     setDraggedEvent(null);
   };
 
@@ -1260,9 +1295,9 @@ export default function CalendarPage() {
       : 0;
 
     const averageCompletionTime = events
-      .filter(e => e.status === 'completed' && e.actualTime)
-      .reduce((acc, e) => acc + parseFloat(e.actualTime || '0'), 0) / 
-      Math.max(1, events.filter(e => e.status === 'completed' && e.actualTime).length);
+      .filter(e => e.status === 'completed' && e.duration)
+      .reduce((acc, e) => acc + e.duration, 0) / 
+      Math.max(1, events.filter(e => e.status === 'completed' && e.duration).length);
 
     // Asset maintenance frequency (for retail context)
     const assetMaintenanceStats = events.reduce((acc, event) => {
@@ -1695,7 +1730,7 @@ export default function CalendarPage() {
                               onChange={(e) => {
                                 if (e.target.value) {
                                   const timeInput = e.target.parentElement?.querySelector('input[type="time"]') as HTMLInputElement;
-                                  const time = timeInput?.value || template.scheduledTime;
+                                  const time = timeInput?.value || template.scheduledTime || '09:00';
                                   createEventFromTemplate(template, e.target.value, time);
                                 }
                               }}
@@ -1980,13 +2015,13 @@ export default function CalendarPage() {
                 </label>
                 <select
                   value={newEvent.type}
-                  onChange={(e) => setNewEvent(prev => ({ ...prev, type: e.target.value as 'maintenance' | 'inspection' | 'calibration' | 'repair' }))}
+                  onChange={(e) => setNewEvent(prev => ({ ...prev, type: e.target.value as 'preventive' | 'inspection' | 'calibration' | 'cleaning' }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="maintenance">Manutenzione</option>
+                  <option value="preventive">Manutenzione Preventiva</option>
                   <option value="inspection">Ispezione</option>
                   <option value="calibration">Calibrazione</option>
-                  <option value="repair">Riparazione</option>
+                  <option value="cleaning">Pulizia</option>
                 </select>
               </div>
 
