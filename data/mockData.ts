@@ -40,6 +40,12 @@ export interface Asset {
   lastMaintenance?: string;
   nextMaintenance?: string;
   workOrders: number;
+  // Hierarchical properties
+  parentId?: string;           // ID dell'attrezzatura padre
+  level: number;               // Livello gerarchico (0=principale, 1=sotto, 2=sotto-sotto)
+  hasChildren: boolean;        // Se ha sotto-attrezzature
+  childrenIds: string[];       // Array degli ID dei figli
+  hierarchyPath: string[];     // Percorso completo nella gerarchia
 }
 
 export interface Category {

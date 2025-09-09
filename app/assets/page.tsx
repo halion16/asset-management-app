@@ -4,15 +4,18 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import AssetForm from "@/components/AssetForm";
+import SubAssetForm from "@/components/SubAssetForm";
 import QRCodeGenerator from "@/components/QRCodeGenerator";
 import WorkOrderFormNew from "@/components/WorkOrderFormNew";
-import { getAssets, saveAsset, deleteAsset, initializeStorage, saveWorkOrder, saveDocument } from "@/lib/storage";
+import { getAssets, saveAsset, deleteAsset, initializeStorage, saveWorkOrder, saveDocument, addSubAsset, getAssetHierarchy, updateExistingAssetsForHierarchy, getAssetPath, deleteAssetWithChildren } from "@/lib/storage";
 import { Asset, WorkOrder, Document } from "@/data/mockData";
 import { 
   Plus,
+  PlusCircle,
   Search,
   Filter,
   ChevronDown,
+  ChevronRight,
   Package,
   AlertTriangle,
   CheckCircle,
@@ -65,6 +68,8 @@ export default function AssetsPage() {
   const [showWorkOrderForm, setShowWorkOrderForm] = useState(false);
   const [showDocumentForm, setShowDocumentForm] = useState(false);
   const [showProgramModal, setShowProgramModal] = useState(false);
+  const [showSubAssetForm, setShowSubAssetForm] = useState(false);
+  const [expandedAssets, setExpandedAssets] = useState<Set<string>>(new Set());
   const [programActiveTab, setProgramActiveTab] = useState<'settings' | 'forecast'>('settings');
   const [newDocument, setNewDocument] = useState({
     name: '',
@@ -110,7 +115,9 @@ export default function AssetsPage() {
   }, [activePopover]);
 
   const loadAssets = () => {
-    const assetsData = getAssets();
+    // Update existing assets for hierarchy support
+    updateExistingAssetsForHierarchy();
+    const assetsData = getAssetHierarchy();
     setAssets(assetsData);
     
     // Initialize asset history
@@ -313,6 +320,58 @@ export default function AssetsPage() {
   const handleEditAsset = (asset: Asset) => {
     setEditingAsset(asset);
     setShowForm(true);
+  };
+
+  const handleCreateSubAsset = (subAsset: Asset) => {
+    if (!selectedAsset) return;
+    
+    addSubAsset(selectedAsset.id, subAsset);
+    loadAssets();
+    setShowSubAssetForm(false);
+    
+    // Add to asset history
+    const historyItem = {
+      id: Date.now().toString(),
+      type: 'subasset',
+      title: 'Sotto-attrezzatura creata',
+      description: `Creata: ${subAsset.name}`,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+      user: 'David Luchetta',
+      status: 'completed'
+    };
+    
+    setAssetHistory(prev => ({
+      ...prev,
+      [selectedAsset.id]: [historyItem, ...(prev[selectedAsset.id] || [])]
+    }));
+  };
+
+  const toggleAssetExpansion = (assetId: string) => {
+    setExpandedAssets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(assetId)) {
+        newSet.delete(assetId);
+      } else {
+        newSet.add(assetId);
+      }
+      return newSet;
+    });
+  };
+
+  const getVisibleAssets = () => {
+    return filteredAssets.filter(asset => {
+      // Show top-level assets always
+      if (asset.level === 0) return true;
+      
+      // Show sub-assets only if their parents are expanded
+      if (asset.parentId) {
+        const parentPath = getAssetPath(asset.parentId);
+        return parentPath.every(parent => expandedAssets.has(parent.id));
+      }
+      
+      return true;
+    });
   };
 
   const handleQuickUpdateAsset = (assetId: string, updates: Partial<Asset>) => {
@@ -797,21 +856,48 @@ export default function AssetsPage() {
             <div className="text-xs font-medium text-gray-500 mb-2 px-2">
               Ordina per: Nome
             </div>
-            {filteredAssets.map((asset) => (
+            {getVisibleAssets().map((asset) => (
               <div
                 key={asset.id}
-                className={`relative p-3 mb-2 rounded-lg cursor-pointer transition-colors ${
+                className={`relative mb-2 rounded-lg cursor-pointer transition-colors ${
                   selectedAsset?.id === asset.id
                     ? 'bg-blue-50 border-l-4 border-blue-500'
                     : 'hover:bg-gray-50'
                 }`}
+                style={{ marginLeft: `${asset.level * 16}px` }}
               >
                 <div 
-                  className="flex items-start gap-3"
+                  className="flex items-start gap-2 p-3"
                   onClick={() => setSelectedAsset(asset)}
                 >
-                  <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white text-sm font-medium">
-                    {asset.name.substring(0, 2).toUpperCase()}
+                  {/* Expansion Toggle */}
+                  {asset.hasChildren ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleAssetExpansion(asset.id);
+                      }}
+                      className="mt-0.5 p-1 hover:bg-gray-200 rounded transition-colors"
+                    >
+                      {expandedAssets.has(asset.id) ? (
+                        <ChevronDown className="h-3 w-3 text-gray-600" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3 text-gray-600" />
+                      )}
+                    </button>
+                  ) : (
+                    <div className="w-5 h-5">{/* Spacer for alignment */}</div>
+                  )}
+                  
+                  {/* Asset Icon */}
+                  <div className={`w-8 h-8 rounded flex items-center justify-center text-white text-sm font-medium ${
+                    asset.level === 0 ? 'bg-blue-600' : 
+                    asset.level === 1 ? 'bg-green-600' : 
+                    'bg-purple-600'
+                  }`}>
+                    {asset.level === 0 ? asset.name.substring(0, 2).toUpperCase() : 
+                     asset.level === 1 ? '•' : 
+                     '◦'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -1007,6 +1093,25 @@ export default function AssetsPage() {
             <div className="p-6 border-b border-gray-200">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
+                  {/* Breadcrumb Navigation */}
+                  {selectedAsset.hierarchyPath && selectedAsset.hierarchyPath.length > 1 && (
+                    <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+                      {getAssetPath(selectedAsset.id).map((pathAsset, index) => (
+                        <div key={pathAsset.id} className="flex items-center gap-2">
+                          {index > 0 && <ChevronRight className="h-3 w-3" />}
+                          <button
+                            onClick={() => setSelectedAsset(pathAsset)}
+                            className={`hover:text-blue-600 transition-colors ${
+                              pathAsset.id === selectedAsset.id ? 'text-blue-600 font-medium' : ''
+                            }`}
+                          >
+                            {pathAsset.name}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
                   <div className="flex items-center gap-3 mb-2">
                     <h2 className="text-xl font-semibold text-gray-900">
                       {selectedAsset.name}
@@ -1067,7 +1172,17 @@ export default function AssetsPage() {
                       <div className="text-sm text-gray-900 font-medium">{selectedAsset.name}</div>
                     </div>
                     <div>
-                      <label className="block text-sm text-gray-500 mb-1">Stato</label>
+                      <label className="block text-sm text-gray-500 mb-1 flex items-center justify-between">
+                        Stato
+                        <button
+                          onClick={() => setShowSubAssetForm(true)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full hover:bg-blue-100 transition-colors group"
+                          title="Crea sotto-Attrezzature"
+                        >
+                          <PlusCircle className="h-4.5 w-4.5 text-blue-600 group-hover:text-blue-700" />
+                          <span className="text-sm text-blue-600 group-hover:text-blue-700 font-medium">Crea sotto-Attrezzature</span>
+                        </button>
+                      </label>
                       <div className={`inline-flex px-2 py-1 rounded text-sm font-medium ${getStatusColor(selectedAsset.status)}`}>
                         {getStatusLabel(selectedAsset.status)}
                       </div>
@@ -1341,6 +1456,15 @@ export default function AssetsPage() {
           asset={selectedAsset}
           onSave={handleCreateWorkOrder}
           onCancel={() => setShowWorkOrderForm(false)}
+        />
+      )}
+
+      {/* Sub Asset Form Modal */}
+      {showSubAssetForm && selectedAsset && (
+        <SubAssetForm
+          parentAsset={selectedAsset}
+          onSave={handleCreateSubAsset}
+          onCancel={() => setShowSubAssetForm(false)}
         />
       )}
 

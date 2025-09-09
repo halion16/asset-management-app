@@ -119,6 +119,117 @@ export function deleteAsset(id: string): Asset[] {
   return assets;
 }
 
+// Hierarchical Asset functions
+export function addSubAsset(parentId: string, subAsset: Asset): Asset[] {
+  const assets = getAssets();
+  const parentIndex = assets.findIndex(a => a.id === parentId);
+  
+  if (parentIndex >= 0) {
+    // Update parent asset
+    assets[parentIndex] = {
+      ...assets[parentIndex],
+      hasChildren: true,
+      childrenIds: [...assets[parentIndex].childrenIds, subAsset.id]
+    };
+    
+    // Add sub asset
+    assets.push(subAsset);
+    
+    saveToStorage(STORAGE_KEYS.ASSETS, assets);
+  }
+  
+  return assets;
+}
+
+export function getAssetHierarchy(): Asset[] {
+  return getAssets().sort((a, b) => {
+    // Sort by hierarchy path length first, then by name
+    if (a.hierarchyPath.length !== b.hierarchyPath.length) {
+      return a.hierarchyPath.length - b.hierarchyPath.length;
+    }
+    return a.name.localeCompare(b.name);
+  });
+}
+
+export function getChildrenAssets(parentId: string): Asset[] {
+  return getAssets().filter(asset => asset.parentId === parentId);
+}
+
+export function getParentAsset(assetId: string): Asset | null {
+  const assets = getAssets();
+  const asset = assets.find(a => a.id === assetId);
+  if (!asset?.parentId) return null;
+  
+  return assets.find(a => a.id === asset.parentId) || null;
+}
+
+export function getAssetPath(assetId: string): Asset[] {
+  const assets = getAssets();
+  const path: Asset[] = [];
+  
+  let currentAsset = assets.find(a => a.id === assetId);
+  
+  while (currentAsset) {
+    path.unshift(currentAsset);
+    if (currentAsset.parentId) {
+      currentAsset = assets.find(a => a.id === currentAsset!.parentId);
+    } else {
+      break;
+    }
+  }
+  
+  return path;
+}
+
+export function deleteAssetWithChildren(id: string): Asset[] {
+  const assets = getAssets();
+  const toDelete = new Set<string>([id]);
+  
+  // Find all descendants
+  const findChildren = (parentId: string) => {
+    const children = assets.filter(a => a.parentId === parentId);
+    children.forEach(child => {
+      toDelete.add(child.id);
+      findChildren(child.id);
+    });
+  };
+  
+  findChildren(id);
+  
+  // Remove from parent's children list
+  const asset = assets.find(a => a.id === id);
+  if (asset?.parentId) {
+    const parentIndex = assets.findIndex(a => a.id === asset.parentId);
+    if (parentIndex >= 0) {
+      assets[parentIndex] = {
+        ...assets[parentIndex],
+        childrenIds: assets[parentIndex].childrenIds.filter(childId => childId !== id),
+        hasChildren: assets[parentIndex].childrenIds.filter(childId => childId !== id).length > 0
+      };
+    }
+  }
+  
+  // Delete all assets in the hierarchy
+  const filteredAssets = assets.filter(a => !toDelete.has(a.id));
+  saveToStorage(STORAGE_KEYS.ASSETS, filteredAssets);
+  return filteredAssets;
+}
+
+export function updateExistingAssetsForHierarchy(): void {
+  const assets = getAssets();
+  const updatedAssets = assets.map(asset => ({
+    ...asset,
+    // Initialize hierarchical properties if not present
+    parentId: asset.parentId || undefined,
+    level: asset.level !== undefined ? asset.level : 0,
+    hasChildren: asset.hasChildren !== undefined ? asset.hasChildren : false,
+    childrenIds: asset.childrenIds || [],
+    hierarchyPath: asset.hierarchyPath || [asset.name]
+  }));
+  
+  saveToStorage(STORAGE_KEYS.ASSETS, updatedAssets);
+}
+
 // Work Order functions
 export function getWorkOrders(): WorkOrder[] {
   return getFromStorage<WorkOrder>(STORAGE_KEYS.WORK_ORDERS, mockWorkOrders);
