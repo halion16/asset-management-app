@@ -11,6 +11,7 @@ import { X, Upload, Plus, AlertTriangle, Zap, Wrench, Settings, Droplets, Calcul
 
 interface WorkOrderFormProps {
   workOrder?: WorkOrder;
+  asset?: { id: string; name: string; location: string };
   onSave: (workOrder: WorkOrder) => void;
   onCancel: () => void;
 }
@@ -34,7 +35,7 @@ const priorityLabels = {
   critical: "Critica"
 };
 
-export default function WorkOrderFormNew({ workOrder, onSave, onCancel }: WorkOrderFormProps) {
+export default function WorkOrderFormNew({ workOrder, asset, onSave, onCancel }: WorkOrderFormProps) {
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -53,8 +54,8 @@ export default function WorkOrderFormNew({ workOrder, onSave, onCancel }: WorkOr
   }>({
     title: '',
     description: '',
-    assetId: '',
-    assetName: '',
+    assetId: asset?.id || '',
+    assetName: asset?.name || '',
     type: 'corrective',
     status: 'open',
     priority: 'medium',
@@ -65,7 +66,7 @@ export default function WorkOrderFormNew({ workOrder, onSave, onCancel }: WorkOr
     estimatedTime: '',
     estimatedHours: '0',
     estimatedMinutes: '0',
-    location: '',
+    location: asset?.location || '',
     supplier: '',
     categoryId: '',
     supplierId: '',
@@ -242,7 +243,7 @@ export default function WorkOrderFormNew({ workOrder, onSave, onCancel }: WorkOr
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">
-            {workOrder ? 'Modifica Ordine di Lavoro' : 'Nuovo Ordine di lavoro'}
+            {workOrder ? 'Modifica Ordine di Lavoro' : asset ? `Nuovo Ordine di Lavoro - ${asset.name}` : 'Nuovo Ordine di lavoro'}
           </h2>
           <Button variant="ghost" size="sm" onClick={onCancel}>
             <X className="h-4 w-4" />
@@ -337,32 +338,47 @@ export default function WorkOrderFormNew({ workOrder, onSave, onCancel }: WorkOr
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-2">Ubicazione</label>
-                <select
-                  value={formData.location}
-                  onChange={(e) => handleChange('location', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Seleziona ubicazione</option>
-                  <option value="Milano">Milano</option>
-                  <option value="Franciocorta">Franciocorta</option>
-                  <option value="Bergamo">Bergamo</option>
-                </select>
+                {asset ? (
+                  <div className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 text-gray-600">
+                    {asset.location}
+                  </div>
+                ) : (
+                  <select
+                    value={formData.location}
+                    onChange={(e) => handleChange('location', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Seleziona ubicazione</option>
+                    <option value="Milano">Milano</option>
+                    <option value="Franciocorta">Franciocorta</option>
+                    <option value="Bergamo">Bergamo</option>
+                  </select>
+                )}
               </div>
               
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-2">Attrezzatura</label>
-                <select
-                  value={formData.assetId}
-                  onChange={(e) => handleChange('assetId', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Seleziona attrezzatura</option>
-                  {mockAssets.map(asset => (
-                    <option key={asset.id} value={asset.id}>
-                      {asset.name}
-                    </option>
-                  ))}
-                </select>
+                {asset ? (
+                  <div className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm bg-gray-50 text-gray-600 flex items-center gap-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="font-medium">{asset.name}</span>
+                    <span className="text-xs text-gray-500">• {asset.location}</span>
+                    <span className="text-xs text-blue-600 ml-auto">Preselezionato</span>
+                  </div>
+                ) : (
+                  <select
+                    value={formData.assetId}
+                    onChange={(e) => handleChange('assetId', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Seleziona attrezzatura</option>
+                    {mockAssets.map(asset => (
+                      <option key={asset.id} value={asset.id}>
+                        {asset.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
 
